@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Medicine Storage Monitor</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    body { font-family: sans-serif; background: #f4f4f4; margin: 0; padding: 20px; }
+    h1 { color: #333; }
+    .card { background: white; border-radius: 12px; padding: 20px; margin: 10px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .value { font-size: 2.5em; font-weight: bold; }
+    .temp { color: #e74c3c; }
+    .hum  { color: #3498db; }
+    .safe { color: #27ae60; }
+    .warning { color: #f39c12; }
+    .danger { color: #e74c3c; }
+    button { padding: 12px 24px; font-size: 1em; border: none; border-radius: 8px; cursor: pointer; margin: 5px; }
+    .btn-on  { background: #e74c3c; color: white; }
+    .btn-off { background: #27ae60; color: white; }
+    #log { height: 150px; overflow-y: auto; background: #1e1e1e; color: #0f0; padding: 10px; border-radius: 8px; font-family: monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Medicine Storage Monitor</h1>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <div class="card" style="flex:1;min-width:150px">
+      <div>Temperature</div>
+      <div class="value temp" id="temp">--</div>
+      <div>°C</div>
+    </div>
+    <div class="card" style="flex:1;min-width:150px">
+      <div>Humidity</div>
+      <div class="value hum" id="hum">--</div>
+      <div>%</div>
+    </div>
+    <div class="card" style="flex:1;min-width:150px">
+      <div>Status</div>
+      <div class="value" id="status">--</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Manual Fan Control</h3>
+    <button class="btn-on"  onclick="sendCommand('FAN_ON')">Turn Fan ON</button>
+    <button class="btn-off" onclick="sendCommand('FAN_OFF')">Turn Fan OFF</button>
+  </div>
+
+  <div class="card">
+    <h3>Live Log</h3>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
+    const TOPIC_SUB = 'medicine/sensor';
+    const TOPIC_PUB = 'medicine/command';
+
+    client.on('connect', () => {
+      log('Connected to MQTT broker');
+      client.subscribe(TOPIC_SUB);
+    });
+
+    client.on('message', (topic, message) => {
+      const data = JSON.parse(message.toString());
+      document.getElementById('temp').textContent = data.temperature.toFixed(1);
+      document.getElementById('hum').textContent  = data.humidity.toFixed(1);
+
+      const statusEl = document.getElementById('status');
+      if (data.temperature >= 25) {
+        statusEl.textContent = 'DANGER'; statusEl.className = 'value danger';
+      } else if (data.temperature >= 22) {
+        statusEl.textContent = 'WARNING'; statusEl.className = 'value warning';
+      } else {
+        statusEl.textContent = 'SAFE'; statusEl.className = 'value safe';
+      }
+      log(`Temp: ${data.temperature}°C | Hum: ${data.humidity}%`);
+    });
+
+    function sendCommand(cmd) {
+      client.publish(TOPIC_PUB, cmd);
+      log('Sent command: ' + cmd);
+    }
+
+    function log(msg) {
+      const el = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      el.innerHTML += `[${time}] ${msg}\n`;
+      el.scrollTop = el.scrollHeight;
+    }
+  </script>
+</body>
+</html>
